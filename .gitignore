@@ -1,0 +1,37 @@
+# Credentials & config
+config.php
+
+# Private notes
+STRATEGY.md
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs & temp
+*.log
+/tmp/
+/temp/
+
+# PHP sessions
+/sessions/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node / build tools (if ever added)
+node_modules/
+/vendor/
+
+# Uploaded user content (if any)
+/uploads/
