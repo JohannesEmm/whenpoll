@@ -87,15 +87,84 @@ function getDB(): DB {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
     $db = new DB($pdo);
+    // Auto-create poll comments table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS poll_comments (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        poll_id     INT NOT NULL,
+        participant VARCHAR(200) NOT NULL,
+        comment     TEXT NOT NULL,
+        created_at  INT NOT NULL,
+        INDEX idx_pc_poll (poll_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // Auto-create persistent-login token table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS remember_tokens (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        user_id    INT NOT NULL,
+        token      VARCHAR(128) NOT NULL UNIQUE,
+        expires_at INT NOT NULL,
+        INDEX idx_rt_token (token),
+        INDEX idx_rt_user  (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     return $db;
 }
 
 function currentUser(): ?array {
-    if (empty($_SESSION['user_id'])) return null;
+    // 1. Active session
+    if (!empty($_SESSION['user_id'])) {
+        $db  = getDB();
+        $uid = (int)$_SESSION['user_id'];
+        $row = $db->querySingle("SELECT id,name,email FROM users WHERE id=$uid", true);
+        return $row ?: null;
+    }
+    // 2. Persistent remember-me cookie
+    if (!empty($_COOKIE['wp_remember'])) {
+        $db  = getDB();
+        $tok = $db->escapeString($_COOKIE['wp_remember']);
+        $row = $db->querySingle(
+            "SELECT user_id FROM remember_tokens WHERE token='$tok' AND expires_at>" . time(),
+            true
+        );
+        if ($row) {
+            $uid  = (int)$row['user_id'];
+            $user = $db->querySingle("SELECT id,name,email FROM users WHERE id=$uid", true);
+            if ($user) {
+                $_SESSION['user_id'] = $uid; // restore session from cookie
+                return $user;
+            }
+        }
+        clearRememberCookie(); // stale cookie — bin it
+    }
+    return null;
+}
+
+function setRememberCookie(int $uid): void {
+    $token  = bin2hex(random_bytes(32));
+    $expiry = time() + 90 * 86400; // 90 days
+    $db     = getDB();
+    $esc    = $db->escapeString($token);
+    $db->exec("DELETE FROM remember_tokens WHERE user_id=$uid"); // one active token per user
+    $db->exec("INSERT INTO remember_tokens (user_id,token,expires_at) VALUES ($uid,'$esc',$expiry)");
+    setcookie('wp_remember', $token, [
+        'expires'  => $expiry,
+        'path'     => '/',
+        'secure'   => true,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
+function clearRememberCookie(): void {
+    if (empty($_COOKIE['wp_remember'])) return;
     $db  = getDB();
-    $uid = (int)$_SESSION['user_id'];
-    $row = $db->querySingle("SELECT id,name,email FROM users WHERE id=$uid", true);
-    return $row ?: null;
+    $tok = $db->escapeString($_COOKIE['wp_remember']);
+    $db->exec("DELETE FROM remember_tokens WHERE token='$tok'");
+    setcookie('wp_remember', '', [
+        'expires'  => time() - 3600,
+        'path'     => '/',
+        'secure'   => true,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
 }
 
 function requireLogin(): array {
@@ -130,6 +199,13 @@ function uniqueSlug(string $title): string {
 
 function slotLabel(string $dt, int $dur): string {
     $ts = strtotime($dt);
+    if ($dur < 30) {
+        // All-day slot: dur=0 legacy (1 day), dur=1-5 = number of days
+        $days = max(1, $dur);
+        if ($days === 1) return date('D d M Y', $ts);
+        $endTs = $ts + ($days - 1) * 86400;
+        return date('D d M', $ts) . ' – ' . date('D d M Y', $endTs);
+    }
     return date('D d M', $ts) . ' · ' . date('H:i', $ts) . '–' . date('H:i', $ts + $dur * 60);
 }
 

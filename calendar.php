@@ -121,13 +121,16 @@ $error   = flash('error');
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?= APP_NAME ?> · Calendars</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 <?php $_navUser = currentUser(); ?>
 <nav>
   <a class="brand" href="index.php">
-    <svg class="brand-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
       <rect width="32" height="32" rx="8" fill="#15803d"/>
       <rect x="3" y="3" width="26" height="5" rx="2" fill="#4ade80"/>
       <rect x="3"  y="11" width="7" height="6" rx="1.5" fill="rgba(255,255,255,.2)"/>
@@ -138,13 +141,14 @@ $error   = flash('error');
       <rect x="23" y="20" width="6" height="6" rx="1.5" fill="white"/>
     </svg><span class="brand-name">When<span>Poll</span></span>
   </a>
+  <span class="nav-eco" title="Hosted in EU · 100% renewable energy">🌿 EU · 100% renewable energy</span>
+  <span class="nav-spacer"></span>
   <?php if ($_navUser): ?>
-    <span class="nav-divider">|</span>
     <span class="nav-user"><?= h($_navUser['name']) ?></span>
     <a href="calendar.php" class="nav-link">Calendars</a>
-    <a href="index.php?action=logout" class="nav-link nav-logout">Sign out</a>
+    <a href="profile.php" class="nav-link">Profile</a>
+    <a href="index.php?action=logout" class="nav-link">Sign out</a>
   <?php endif; ?>
-  <span class="nav-eco" title="Hosted in EU · 100% renewable energy">🌿 EU · renewable</span>
 </nav>
 
 <div class="page-wrap">

@@ -14,28 +14,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tz           = trim($_POST['tz']             ?? 'UTC');
     $anon         = (int)(!empty($_POST['anonymous']));
     $allDay       = (int)(!empty($_POST['all_day']));
-    $creatorEmail = trim($_POST['creator_email']  ?? '');
-
+    $allDaySpan   = max(1, min(5, (int)($_POST['all_day_span'] ?? 1)));
     if (!in_array($tz, timezone_identifiers_list())) $tz = 'UTC';
 
     if (!$title)  $error = 'Title is required.';
     elseif (!$slots) $error = 'Select at least one ' . ($allDay ? 'date' : 'time slot') . '.';
     else {
-        // Resolve user_id — logged-in user, or find/create from email, or null
         $uid = $user ? $user['id'] : null;
-        if (!$uid && $creatorEmail && filter_var($creatorEmail, FILTER_VALIDATE_EMAIL)) {
-            $eesc    = $db->escapeString($creatorEmail);
-            $existing = $db->querySingle("SELECT id FROM users WHERE email='$eesc'", true);
-            if ($existing) {
-                $uid = $existing['id'];
-            } else {
-                $uname = explode('@', $creatorEmail)[0];
-                $ustmt = $db->prepare("INSERT INTO users (name,email,password) VALUES (?,?,'')");
-                $ustmt->bindValue(1, $uname); $ustmt->bindValue(2, $creatorEmail);
-                $ustmt->execute();
-                $uid = $db->lastInsertRowID();
-            }
-        }
 
         $pid   = uniqueSlug($title);
         $token = genId(12);
@@ -54,23 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$s) continue;
             $sstmt->bindValue(1, $pollId);
             $sstmt->bindValue(2, $s);
-            $sstmt->bindValue(3, $allDay ? 0 : $dur);
+            $sstmt->bindValue(3, $allDay ? $allDaySpan : $dur);
             $sstmt->execute();
             $sstmt->reset();
-        }
-
-        // Email admin link if creator provided email but is not logged in
-        if ($creatorEmail && !$user) {
-            $adminUrl = APP_URL . "/results.php?id=$pid&token=$token";
-            $voteUrl  = APP_URL . "/vote.php?id=$pid";
-            $body = "Hi,\n\nYour WhenPoll \"$title\" has been created!\n\n"
-                  . "Your admin link (bookmark this — it's your only way back):\n$adminUrl\n\n"
-                  . "Share this voting link with participants:\n$voteUrl\n\n— WhenPoll";
-            $headers = implode("\r\n", [
-                'From: WhenPoll <info@whenpoll.com>',
-                'Content-Type: text/plain; charset=UTF-8',
-            ]);
-            mail($creatorEmail, "Your WhenPoll: $title", $body, $headers);
         }
 
         flash('success', 'Poll created! Share the voting link with participants.');
@@ -90,13 +61,16 @@ if ($user) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?= APP_NAME ?> · New poll</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 <?php $_navUser = currentUser(); ?>
 <nav>
   <a class="brand" href="index.php">
-    <svg class="brand-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
       <rect width="32" height="32" rx="8" fill="#15803d"/>
       <rect x="3" y="3" width="26" height="5" rx="2" fill="#4ade80"/>
       <rect x="3"  y="11" width="7" height="6" rx="1.5" fill="rgba(255,255,255,.2)"/>
@@ -107,13 +81,14 @@ if ($user) {
       <rect x="23" y="20" width="6" height="6" rx="1.5" fill="white"/>
     </svg><span class="brand-name">When<span>Poll</span></span>
   </a>
+  <span class="nav-eco" title="Hosted in EU · 100% renewable energy">🌿 EU · 100% renewable energy</span>
+  <span class="nav-spacer"></span>
   <?php if ($_navUser): ?>
-    <span class="nav-divider">|</span>
     <span class="nav-user"><?= h($_navUser['name']) ?></span>
     <a href="calendar.php" class="nav-link">Calendars</a>
-    <a href="index.php?action=logout" class="nav-link nav-logout">Sign out</a>
+    <a href="profile.php" class="nav-link">Profile</a>
+    <a href="index.php?action=logout" class="nav-link">Sign out</a>
   <?php endif; ?>
-  <span class="nav-eco" title="Hosted in EU · 100% renewable energy">🌿 EU · renewable</span>
 </nav>
 
 <div class="page-wrap">
@@ -124,8 +99,9 @@ if ($user) {
   <?php endif; ?>
 
   <form method="POST" id="createForm">
-    <input type="hidden" name="tz"      id="pollTz"     value="UTC">
-    <input type="hidden" name="all_day" id="pollAllDay" value="0">
+    <input type="hidden" name="tz"           id="pollTz"      value="UTC">
+    <input type="hidden" name="all_day"      id="pollAllDay"  value="0">
+    <input type="hidden" name="all_day_span" id="allDaySpan"  value="1">
 
     <!-- ── Details ───────────────────────────────────────────────────────── -->
     <div class="card" style="margin-bottom:.9rem">
@@ -133,15 +109,6 @@ if ($user) {
         <label>Title *</label>
         <input type="text" name="title" required placeholder="e.g. Q3 kick-off" autofocus>
       </div>
-      <?php if (!$user): ?>
-      <div class="field">
-        <label>Your email <span class="muted">(optional)</span></label>
-        <input type="email" name="creator_email" placeholder="you@example.com">
-        <p class="hint" style="margin-top:.3rem">
-          If you skip this, <strong>save your admin link</strong> after creating — it's the only way to manage your poll.
-        </p>
-      </div>
-      <?php endif; ?>
       <div class="row-3">
         <div class="field" style="margin:0">
           <label>Duration</label>
@@ -191,6 +158,16 @@ if ($user) {
               <select id="hourTo" class="ctrl-select"></select>
             </div>
           </div>
+          <div id="spanWrap" style="display:none">
+            <label class="ctrl-label">Event spans</label>
+            <select id="daySpan" class="ctrl-select">
+              <option value="1">1 day</option>
+              <option value="2">2 days</option>
+              <option value="3">3 days</option>
+              <option value="4">4 days</option>
+              <option value="5">5 days</option>
+            </select>
+          </div>
           <label class="toggle-check" style="padding-bottom:.35rem">
             <input type="checkbox" id="skipWknd" checked>
             <span>Weekdays only</span>
@@ -199,11 +176,10 @@ if ($user) {
         <div class="grid-quick">
           <button type="button" class="btn btn-ghost btn-sm" onclick="quickAll()">All</button>
           <button type="button" class="btn btn-ghost btn-sm" onclick="quickClear()">Clear</button>
-          <?php if ($cals): ?>
-            <button type="button" class="btn btn-ghost btn-sm" id="calBtn" style="display:none">✨ Busy</button>
-          <?php else: ?>
+          <?php if (!$cals): ?>
             <a href="calendar.php" class="btn btn-ghost btn-sm" style="white-space:nowrap">🗓 Calendar</a>
           <?php endif; ?>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="addWeek()">+ week</button>
         </div>
       </div>
 
@@ -223,22 +199,14 @@ if ($user) {
       <div id="slotHiddens"></div>
     </div>
 
-    <!-- Calendar busy overlay panel -->
     <?php if ($cals): ?>
-    <div id="calPanel" class="suggest-panel" style="display:none;margin-bottom:.9rem">
-      <button type="button" class="btn btn-secondary btn-sm" id="fetchFreeBtn">Show busy slots from calendar</button>
-      <span id="calStatus" class="hint" style="margin-left:.5rem"></span>
+    <div style="min-height:1.1rem;margin-bottom:.2rem">
+      <span id="calStatus" class="hint"></span>
     </div>
     <?php endif; ?>
 
     <div class="form-footer-row">
       <button type="submit" class="btn btn-primary">Create poll →</button>
-      <div class="template-tools">
-        <button type="button" class="btn btn-ghost btn-sm" onclick="saveTemplate()">Save template</button>
-        <select id="templSel" class="ctrl-select" onchange="loadTemplate(this)" style="display:none">
-          <option value="">Load template…</option>
-        </select>
-      </div>
     </div>
   </form>
 </div>
@@ -247,7 +215,9 @@ if ($user) {
 // ── State ─────────────────────────────────────────────────────────────────────
 const selected  = new Set();
 const busyCells = new Set();
+const busyTitles = {};
 let isAllDay    = false;
+let numWeeks    = 2;
 
 // ── Timezone ──────────────────────────────────────────────────────────────────
 document.getElementById('pollTz').value =
@@ -281,12 +251,11 @@ function setMode(allDay) {
   document.getElementById('pollAllDay').value = allDay ? '1' : '0';
   document.getElementById('modeTime').classList.toggle('active', !allDay);
   document.getElementById('modeDay' ).classList.toggle('active',  allDay);
-  document.getElementById('hoursWrap').style.display   = allDay ? 'none' : '';
+  document.getElementById('hoursWrap').style.display    = allDay ? 'none' : '';
+  document.getElementById('spanWrap').style.display     = allDay ? '' : 'none';
   document.getElementById('timeGridWrap').style.display = allDay ? 'none' : '';
   document.getElementById('dateGrid').style.display     = allDay ? 'flex' : 'none';
   document.getElementById('durSelect').closest('.field').style.opacity = allDay ? '.4' : '';
-  const calBtn = document.getElementById('calBtn');
-  if (calBtn) calBtn.style.display = allDay ? 'none' : '';
   selected.clear(); busyCells.clear();
   renderGrid();
 }
@@ -295,13 +264,19 @@ function setMode(allDay) {
 const DAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function fmtDate(d) { return d.toISOString().slice(0,10); }
+function fmtDate(d) {
+  // Use LOCAL date parts — toISOString() converts to UTC which shifts the date
+  // for positive-offset timezones (e.g. Italy UTC+2 → midnight appears as prev day)
+  return d.getFullYear() + '-' +
+    (d.getMonth() + 1).toString().padStart(2, '0') + '-' +
+    d.getDate().toString().padStart(2, '0');
+}
 
 function getDates() {
   const start = new Date($from.value + 'T00:00:00');
   const skip  = $skip.checked;
   const dates = [], d = new Date(start);
-  const target = skip ? 10 : 14;
+  const target = skip ? numWeeks * 5 : numWeeks * 7;
   while (dates.length < target) {
     if (!skip || (d.getDay() !== 0 && d.getDay() !== 6)) dates.push(new Date(d));
     d.setDate(d.getDate() + 1);
@@ -340,7 +315,11 @@ function renderGrid() {
     const cells = dates.map(d => {
       const key = slotKey(d, h), wknd = d.getDay() === 0 || d.getDay() === 6;
       const sel = selected.has(key), busy = busyCells.has(key);
-      return `<td><button type="button" class="grid-cell${sel?' sel':''}${wknd?' wknd':''}${busy&&!sel?' busy':''}" data-key="${key}"></button></td>`;
+      const title = busyTitles[key] || '';
+      const truncTitle = title.slice(0, 80);
+      const safeTitle = truncTitle.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const titleHtml = (busy && !sel && safeTitle) ? `<span class="busy-title">${safeTitle}</span>` : '';
+      return `<td><button type="button" class="grid-cell${sel?' sel':''}${wknd?' wknd':''}${busy&&!sel?' busy':''}" data-key="${key}" ${title ? `title="${title.replace(/"/g,'&quot;')}"` : ''}>${titleHtml}</button></td>`;
     }).join('');
     return `<tr><td class="time-label">${t}</td>${cells}</tr>`;
   }).join('');
@@ -348,15 +327,38 @@ function renderGrid() {
   syncHiddens();
 }
 
+function getSpan() {
+  return parseInt(document.getElementById('daySpan')?.value || '1') || 1;
+}
+
 function renderDateGrid() {
   const dates = getDates();
+  const span  = getSpan();
+
+  // Build a map: dateString → start slot key (for highlighting covered days)
+  const coveredBy = {};
+  selected.forEach(key => {
+    const start = new Date(key.slice(0, 10) + 'T00:00:00');
+    for (let i = 0; i < span; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      coveredBy[fmtDate(d)] = key;
+    }
+  });
+
   document.getElementById('dateGrid').innerHTML = dates.map(d => {
-    const key = fmtDate(d) + 'T00:00';
-    const sel = selected.has(key), wknd = d.getDay() === 0 || d.getDay() === 6;
-    return `<button type="button" class="date-cell${sel?' sel':''}${wknd?' wknd':''}" data-key="${key}">
+    const ds      = fmtDate(d);
+    const key     = ds + 'T00:00';
+    const isStart = selected.has(key);
+    const inSpan  = ds in coveredBy;
+    const wknd    = d.getDay() === 0 || d.getDay() === 6;
+    // mark tail cells (covered but not start) so we can style differently
+    const isTail  = inSpan && !isStart;
+    return `<button type="button" class="date-cell${inSpan?' sel':''}${wknd?' wknd':''}${isTail?' span-tail':''}" data-key="${key}">
       <span class="dc-day">${DAY[d.getDay()]}</span>
       <span class="dc-num">${d.getDate()}</span>
       <span class="dc-mon">${MON[d.getMonth()]}</span>
+      ${isStart && span > 1 ? `<span class="dc-span-badge">${span}d</span>` : ''}
     </button>`;
   }).join('');
 }
@@ -367,6 +369,35 @@ let dragAction = null;
 function applyCell(btn) {
   if (!btn || !btn.dataset.key) return;
   const key = btn.dataset.key;
+
+  if (isAllDay) {
+    const span = getSpan();
+    const ds   = key.slice(0, 10);
+    // Find which start-slot (if any) covers this date
+    let coverKey = null;
+    if (span > 1) {
+      selected.forEach(sk => {
+        const start = new Date(sk.slice(0, 10) + 'T00:00:00');
+        for (let i = 0; i < span; i++) {
+          const d = new Date(start);
+          d.setDate(d.getDate() + i);
+          if (fmtDate(d) === ds) { coverKey = sk; break; }
+        }
+      });
+    } else {
+      coverKey = selected.has(key) ? key : null;
+    }
+    if (dragAction === 'add' && !coverKey) {
+      selected.add(key);
+    } else if (dragAction === 'remove' && coverKey) {
+      selected.delete(coverKey);
+    }
+    syncHiddens();
+    renderDateGrid();
+    return;
+  }
+
+  // Time-slot grid
   if (dragAction === 'add') {
     selected.add(key); btn.classList.add('sel'); btn.classList.remove('busy');
   } else {
@@ -402,6 +433,8 @@ document.addEventListener('touchmove', e => {
 document.addEventListener('touchend', () => { dragAction = null; });
 
 function syncHiddens() {
+  const span = isAllDay ? getSpan() : 1;
+  document.getElementById('allDaySpan').value = span;
   const c = document.getElementById('slotHiddens');
   c.innerHTML = '';
   selected.forEach(k => {
@@ -410,8 +443,14 @@ function syncHiddens() {
     c.appendChild(inp);
   });
   const n = selected.size;
+  const unit = isAllDay
+    ? (span > 1 ? `${span}-day event` : 'date')
+    : 'slot';
+  const units = isAllDay
+    ? (span > 1 ? `${span}-day events` : 'dates')
+    : 'slots';
   document.getElementById('slotCount').textContent =
-    n ? `${n} ${isAllDay ? (n>1?'dates':'date') : (n>1?'slots':'slot')} selected`
+    n ? `${n} ${n > 1 ? units : unit} selected`
       : isAllDay ? 'Click dates to select.' : 'Click or drag to select slots.';
 }
 
@@ -430,77 +469,65 @@ function quickClear() {
   syncHiddens();
 }
 
-[$from, $hFrom, $hTo, $skip].forEach(el => el.addEventListener('change', renderGrid));
+[$from, $hFrom, $hTo, $skip].forEach(el => el.addEventListener('change', () => {
+  renderGrid();
+  <?php if ($cals): ?>scheduleFetch();<?php endif; ?>
+}));
 
-// ── Calendar busy overlay ─────────────────────────────────────────────────────
-const calBtn = document.getElementById('calBtn');
-if (calBtn) {
-  const calPanel = document.getElementById('calPanel');
-  calBtn.addEventListener('click', () => {
-    calPanel.style.display = calPanel.style.display === 'none' ? 'block' : 'none';
-  });
-  calBtn.style.display = '';
+document.getElementById('daySpan').addEventListener('change', () => {
+  selected.clear(); // changing span invalidates existing selections
+  syncHiddens();
+  renderDateGrid();
+});
 
-  document.getElementById('fetchFreeBtn').addEventListener('click', async () => {
-    const status = document.getElementById('calStatus');
-    const dates  = getDates();
-    const from   = fmtDate(dates[0]), to = fmtDate(dates[dates.length - 1]);
-    const dur    = document.querySelector('[name=duration]').value;
-    const hf     = parseInt($hFrom.value).toString().padStart(2,'0') + ':00';
-    const ht     = parseInt($hTo.value).toString().padStart(2,'00') + ':00';
-    status.textContent = 'Checking…';
-    try {
-      const resp = await fetch(`api.php?action=free_slots&from=${from}&to=${to}&work_start=${hf}&work_end=${ht}&duration=${dur}`);
-      const data = await resp.json();
-      busyCells.clear();
-      (data.busy || []).forEach(dt => busyCells.add(dt.slice(0,13) + ':00'));
-      renderGrid();
-      const nb = data.busy ? data.busy.length : 0;
-      status.textContent = `${nb} busy slot${nb !== 1 ? 's' : ''} marked`;
-    } catch (e) { status.textContent = 'Error.'; }
-  });
+// ── Calendar busy overlay (auto-load) ─────────────────────────────────────────
+<?php if ($cals): ?>
+let busyFetchTimer = null;
+
+async function fetchBusySlots() {
+  if (isAllDay) return;
+  const status = document.getElementById('calStatus');
+  const dates  = getDates();
+  const from   = fmtDate(dates[0]), to = fmtDate(dates[dates.length - 1]);
+  const dur    = document.querySelector('[name=duration]').value;
+  const hf     = parseInt($hFrom.value).toString().padStart(2, '0') + ':00';
+  const ht     = parseInt($hTo.value).toString().padStart(2, '0') + ':00';
+  if (status) status.textContent = 'Loading calendar…';
+  try {
+    const tz   = encodeURIComponent(document.getElementById('pollTz').value || 'UTC');
+    const resp = await fetch(`api.php?action=free_slots&from=${from}&to=${to}&work_start=${hf}&work_end=${ht}&duration=${dur}&tz=${tz}`);
+    const data = await resp.json();
+    busyCells.clear();
+    Object.keys(busyTitles).forEach(k => delete busyTitles[k]);
+    (data.busy || []).forEach(b => {
+      const dt    = typeof b === 'string' ? b : b.dt;
+      const title = typeof b === 'string' ? '' : (b.title || '');
+      busyCells.add(dt.slice(0, 13) + ':00');
+      if (title) busyTitles[dt.slice(0, 13) + ':00'] = title;
+    });
+    renderGrid();
+    const nb = data.busy ? data.busy.length : 0;
+    if (status) status.textContent = nb ? `${nb} busy slot${nb !== 1 ? 's' : ''} marked` : '';
+  } catch (e) { if (status) status.textContent = ''; }
 }
 
-// ── Templates (localStorage) ──────────────────────────────────────────────────
-function saveTemplate() {
-  const name = prompt('Template name:');
-  if (!name?.trim()) return;
-  const templates = JSON.parse(localStorage.getItem('wp_templates') || '[]');
-  templates.push({
-    name: name.trim(),
-    duration: document.querySelector('[name=duration]').value,
-    hourFrom: $hFrom.value, hourTo: $hTo.value,
-    skipWknd: $skip.checked, allDay: isAllDay,
-  });
-  localStorage.setItem('wp_templates', JSON.stringify(templates));
-  updateTemplateUI();
+function scheduleFetch() {
+  clearTimeout(busyFetchTimer);
+  busyFetchTimer = setTimeout(fetchBusySlots, 500);
+}
+<?php endif; ?>
+
+// ── Add a week ────────────────────────────────────────────────────────────────
+function addWeek() {
+  numWeeks++;
+  renderGrid();
+  <?php if ($cals): ?>scheduleFetch();<?php endif; ?>
 }
 
-function loadTemplate(sel) {
-  const idx = parseInt(sel.value);
-  if (isNaN(idx)) return;
-  const t = JSON.parse(localStorage.getItem('wp_templates') || '[]')[idx];
-  if (!t) return;
-  document.querySelector('[name=duration]').value = t.duration ?? 60;
-  $hFrom.value = t.hourFrom ?? 9;
-  $hTo.value   = t.hourTo ?? 18;
-  $skip.checked = !!t.skipWknd;
-  if (t.allDay !== isAllDay) setMode(!!t.allDay);
-  else renderGrid();
-  sel.value = '';
-}
-
-function updateTemplateUI() {
-  const templates = JSON.parse(localStorage.getItem('wp_templates') || '[]');
-  const sel = document.getElementById('templSel');
-  sel.style.display = templates.length ? '' : 'none';
-  sel.innerHTML = '<option value="">Load template…</option>' +
-    templates.map((t, i) => `<option value="${i}">${h(t.name)}</option>`).join('');
-}
 function h(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-updateTemplateUI();
 renderGrid();
+<?php if ($cals): ?>fetchBusySlots();<?php endif; ?>
 </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 # WhenPoll
 
-Free, privacy-friendly group scheduling. Create a poll, share one link, your group votes. No ads, no paywall — EU-hosted on 100% renewable energy.
+Free, privacy-friendly group scheduling. Create a poll, share one link, your group votes — EU-hosted on 100% renewable energy.
 
 Live at [whenpoll.com](https://whenpoll.com)
 

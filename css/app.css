@@ -53,12 +53,14 @@ nav {
 .nav-user    { color: rgba(255,255,255,.6); font-size: .83rem; }
 .nav-link    { color: rgba(255,255,255,.55); font-size: .83rem; text-decoration: none; transition: color .15s; }
 .nav-link:hover { color: #fff; }
-.nav-logout  { margin-left: auto; }
+.nav-spacer  { flex: 1; }
 .nav-eco {
-  margin-left: auto;
-  font-size: .7rem;
+  font-size: .68rem;
   color: #4ade80;
-  opacity: .75;
+  background: rgba(74,222,128,.12);
+  border: 1px solid rgba(74,222,128,.2);
+  padding: .15rem .5rem;
+  border-radius: 20px;
   white-space: nowrap;
 }
 
@@ -139,6 +141,16 @@ body.auth-page { display: flex; flex-direction: column; min-height: 100vh; }
 .auth-sub   { margin-bottom: 1.25rem; }
 .auth-form  { margin-top: 1rem; }
 .auth-switch { font-size: .83rem; color: var(--ink2); margin-top: 1rem; text-align: center; }
+.auth-tabs { display: flex; gap: .35rem; margin: .75rem 0 0; border-bottom: 2px solid var(--border); }
+.auth-tab {
+  background: none; border: none; padding: .5rem .9rem;
+  font-family: 'Inter', sans-serif; font-size: .88rem; font-weight: 600;
+  color: var(--ink2); cursor: pointer; border-bottom: 2px solid transparent;
+  margin-bottom: -2px; transition: color .15s;
+}
+.auth-tab:hover { color: var(--ink); }
+.auth-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.auth-tab-panel { padding-top: .9rem; }
 
 /* ── Dashboard ────────────────────────────────────────────────────────────── */
 .dashboard-header {
@@ -377,14 +389,27 @@ details summary::-webkit-details-marker { display: none; }
   width: 38px; height: 24px;
   background: #f2f0eb; border: 1px solid var(--border);
   border-radius: 4px; cursor: pointer; display: block;
+  overflow: hidden;
   transition: background .08s, border-color .08s;
 }
 .grid-cell:hover  { background: #e4e0d8; border-color: #bbb8b0; }
 .grid-cell.sel    { background: var(--accent); border-color: var(--accent-h); }
 .grid-cell.sel:hover { filter: brightness(1.1); }
 .grid-cell.wknd   { background: #edece8; }
-.grid-cell.busy   { background: #b0bdb0; border-color: #8fa08f; }
+.grid-cell.busy   { background: #b0bdb0; border-color: #8fa08f; overflow: hidden; }
 .grid-cell.busy:hover { background: #a0b0a0; }
+.busy-title {
+  display: block;
+  font-size: 7.5px;
+  line-height: 1.15;
+  color: #2a3a2a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  pointer-events: none;
+  opacity: .85;
+}
 
 /* ── Vote matrix grid ─────────────────────────────────────────────────────── */
 .vf-identity { display: flex; gap: .5rem; margin-bottom: .75rem; }
@@ -477,9 +502,15 @@ details summary::-webkit-details-marker { display: none; }
 .date-cell.sel .dc-day,
 .date-cell.sel .dc-num,
 .date-cell.sel .dc-mon { color: #fff; }
+.date-cell.span-tail   { border-left-style: dashed; border-radius: 0 8px 8px 0; margin-left: -6px; padding-left: .5rem; }
+.date-cell.span-tail:hover { background: #e8e5de; }
+.date-cell.sel.span-tail { background: var(--accent-h); }
 .dc-day { font-size: .6rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink2); }
 .dc-num { font-size: 1.1rem; font-weight: 800; font-family: 'Inter', sans-serif; line-height: 1.1; color: var(--ink); }
 .dc-mon { font-size: .6rem; color: var(--ink2); }
+.dc-span-badge { font-size: .55rem; font-weight: 700; background: rgba(255,255,255,.35);
+  color: #fff; border-radius: 4px; padding: 0 .25rem; margin-top: .15rem; }
+.vg-range-end { display: block; font-size: .65rem; font-weight: 400; opacity: .75; }
 
 /* ── Row-3 layout ─────────────────────────────────────────────────────────── */
 .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
@@ -498,6 +529,23 @@ details summary::-webkit-details-marker { display: none; }
 .rp-yes   { background: #dcfce7; color: #15803d; }
 .rp-maybe { background: #fef9c3; color: #92400e; }
 .rp-no    { background: #f3f4f6; color: #6b7280; }
+
+/* ── Comments ─────────────────────────────────────────────────────────────── */
+.comments-card { margin-top: 1.25rem; }
+.comments-card h2 { font-size: 1rem; font-weight: 700; margin-bottom: .75rem; color: var(--ink); }
+.comment-item {
+  padding: .65rem 0;
+  border-top: 1px solid var(--border);
+}
+.comment-item:first-of-type { border-top: none; padding-top: 0; }
+.comment-name {
+  font-size: .8rem; font-weight: 700; color: var(--accent);
+  display: block; margin-bottom: .2rem;
+}
+.comment-text {
+  font-size: .88rem; color: var(--ink2); line-height: 1.55;
+  white-space: pre-wrap;
+}
 
 /* ── Eco nav badge ────────────────────────────────────────────────────────── */
 .eco-strip {

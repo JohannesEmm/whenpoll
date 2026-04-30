@@ -6,16 +6,19 @@
 <title>WhenPoll — Free Group Scheduling</title>
 <meta name="description" content="Find the perfect meeting time. Create a poll, share a link, let your group vote. Free, private, EU-hosted.">
 <meta property="og:title" content="WhenPoll — Free Group Scheduling">
-<meta property="og:description" content="Create a scheduling poll in seconds. Free, private, EU-hosted, 100% renewable hosting.">
+<meta property="og:description" content="Create a scheduling poll in seconds. Free, private, EU-hosted, 100% renewable energy.">
 <meta property="og:url" content="https://whenpoll.com">
 <meta property="og:type" content="website">
 <link rel="canonical" href="https://whenpoll.com">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="css/landing.css">
 </head>
 <body>
 
 <div class="eco-strip">
-  <span>Hosted in EU</span>
+  <span>Hosted in the EU</span>
   <span>100% renewable energy</span>
   <span>No tracking</span>
   <span>Open source</span>
@@ -39,10 +42,9 @@
 
 <section class="hero">
   <div class="hero-inner">
-    <h1>Find the perfect time<br><em>together.</em></h1>
+    <h1><span style="white-space:nowrap">Stop asking <em>When?</em></span><br>Just <em>Poll.</em></h1>
     <p class="hero-sub">Create a scheduling poll, share one link, your group votes. No account needed to vote. Free forever.</p>
     <a href="auth.php" class="btn-hero">Create a poll →</a>
-    <p class="hero-note">No tracking · Works with Google, Outlook &amp; CalDAV</p>
   </div>
   <div class="hero-visual">
     <div class="mock-poll">
@@ -80,9 +82,11 @@
     <div class="footer-links">
       <a href="auth.php">Sign in</a>
       <a href="mailto:info@whenpoll.com">Contact</a>
-      <a href="https://github.com/johannesEmm/whenpoll">GitHub</a>
+      <a href="privacy.php">Privacy</a>
+      <a href="terms.php">Terms</a>
+      <a href="https://github.com/JohannesEmm/whenpoll">GitHub</a>
     </div>
-    <p class="footer-copy">© <?= date('Y') ?> WhenPoll · EU hosted · 100% renewable</p>
+    <p class="footer-copy">© <?= date('Y') ?> WhenPoll · EU hosted · 100% renewable energy</p>
   </div>
 </footer>
 

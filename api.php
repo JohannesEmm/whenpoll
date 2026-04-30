@@ -13,6 +13,8 @@ if ($action === 'free_slots') {
     $workStart = $_GET['work_start'] ?? '09:00';
     $workEnd   = $_GET['work_end']   ?? '18:00';
     $duration  = max(30, (int)($_GET['duration'] ?? 60));
+    $tz        = $_GET['tz'] ?? 'UTC';
+    if (!in_array($tz, timezone_identifiers_list())) $tz = 'UTC';
 
     if (!$from || !$to) { echo json_encode(['error' => 'missing params']); exit; }
 
@@ -35,8 +37,8 @@ if ($action === 'free_slots') {
         }
     }
 
-    $freeSlots = computeFreeSlots($from, $to, $workStart, $workEnd, $duration, $busy);
-    $busySlots = computeBusySlots($from, $to, $workStart, $workEnd, $duration, $busy);
+    $freeSlots = computeFreeSlots($from, $to, $workStart, $workEnd, $duration, $busy, $tz);
+    $busySlots = computeBusySlots($from, $to, $workStart, $workEnd, $duration, $busy, $tz);
     echo json_encode(['slots' => $freeSlots, 'busy' => $busySlots]);
     exit;
 }
@@ -86,22 +88,24 @@ function refreshMicrosoftToken(array &$cal): bool {
 // ── Google busy fetch ─────────────────────────────────────────────────────────
 function fetchGoogleBusy(array $cal, string $from, string $to): array {
     if ($cal['token_expiry'] && $cal['token_expiry'] < time() + 60) refreshGoogleToken($cal);
-    $body = json_encode([
-        'timeMin'  => $from . 'T00:00:00Z',
-        'timeMax'  => $to   . 'T23:59:59Z',
-        'items'    => [['id' => 'primary']],
+    $params = http_build_query([
+        'timeMin'      => $from . 'T00:00:00Z',
+        'timeMax'      => $to   . 'T23:59:59Z',
+        'singleEvents' => 'true',
+        'fields'       => 'items(summary,start,end,transparency,status)',
     ]);
-    $ctx = stream_context_create(['http' => [
-        'method'  => 'POST',
-        'header'  => "Content-Type: application/json\r\nAuthorization: Bearer " . $cal['access_token'],
-        'content' => $body,
-        'ignore_errors' => true,
-    ]]);
-    $resp = file_get_contents('https://www.googleapis.com/calendar/v3/freeBusy', false, $ctx);
+    $resp = httpGet(
+        "https://www.googleapis.com/calendar/v3/calendars/primary/events?$params",
+        ["Authorization: Bearer " . $cal['access_token']]
+    );
     $data = json_decode($resp ?: '{}', true);
-    $out  = [];
-    foreach (($data['calendars']['primary']['busy'] ?? []) as $b) {
-        $out[] = [strtotime($b['start']), strtotime($b['end'])];
+    $out = [];
+    foreach (($data['items'] ?? []) as $ev) {
+        if (($ev['transparency'] ?? '') === 'transparent') continue;
+        if (strtolower($ev['status'] ?? '') === 'cancelled') continue;
+        $s = strtotime($ev['start']['dateTime'] ?? $ev['start']['date'] ?? '');
+        $e = strtotime($ev['end']['dateTime']   ?? $ev['end']['date']   ?? '');
+        if ($s && $e) $out[] = [$s, $e, $ev['summary'] ?? ''];
     }
     return $out;
 }
@@ -109,25 +113,23 @@ function fetchGoogleBusy(array $cal, string $from, string $to): array {
 // ── Microsoft busy fetch ──────────────────────────────────────────────────────
 function fetchMicrosoftBusy(array $cal, string $from, string $to): array {
     if ($cal['token_expiry'] && $cal['token_expiry'] < time() + 60) refreshMicrosoftToken($cal);
-    $body = json_encode([
-        'schedules'            => ['me'],
-        'startTime'            => ['dateTime' => $from . 'T00:00:00', 'timeZone' => 'UTC'],
-        'endTime'              => ['dateTime' => $to   . 'T23:59:59', 'timeZone' => 'UTC'],
-        'availabilityViewInterval' => 15,
+    $params = http_build_query([
+        'startDateTime' => $from . 'T00:00:00Z',
+        'endDateTime'   => $to   . 'T23:59:59Z',
+        '$select'       => 'subject,start,end,showAs',
     ]);
-    $ctx = stream_context_create(['http' => [
-        'method'  => 'POST',
-        'header'  => "Content-Type: application/json\r\nAuthorization: Bearer " . $cal['access_token'],
-        'content' => $body,
-        'ignore_errors' => true,
-    ]]);
-    $resp = file_get_contents('https://graph.microsoft.com/v1.0/me/calendar/getSchedule', false, $ctx);
+    $resp = httpGet(
+        "https://graph.microsoft.com/v1.0/me/calendarView?$params",
+        ["Authorization: Bearer " . $cal['access_token']]
+    );
     $data = json_decode($resp ?: '{}', true);
     $out  = [];
-    foreach (($data['value'][0]['scheduleItems'] ?? []) as $item) {
-        // Only treat 'busy' status as busy; free/tentative/oof are ignored per requirements
-        if (strtolower($item['status'] ?? '') !== 'busy') continue;
-        $out[] = [strtotime($item['start']['dateTime']), strtotime($item['end']['dateTime'])];
+    foreach (($data['value'] ?? []) as $ev) {
+        $showAs = strtolower($ev['showAs'] ?? 'busy');
+        if ($showAs === 'free' || $showAs === 'tentative' || $showAs === 'oof') continue;
+        $s = strtotime($ev['start']['dateTime'] ?? '');
+        $e = strtotime($ev['end']['dateTime']   ?? '');
+        if ($s && $e) $out[] = [$s, $e, $ev['subject'] ?? ''];
     }
     return $out;
 }
@@ -174,7 +176,9 @@ XML;
         if (!$ds || !$de) continue;
         $s = strtotime($ds[1]);
         $e = strtotime($de[1]);
-        if ($s && $e) $out[] = [$s, $e];
+        preg_match('/^SUMMARY:(.*)/m', $ical, $summ);
+        $title = trim($summ[1] ?? '');
+        if ($s && $e) $out[] = [$s, $e, $title];
     }
     return $out;
 }
@@ -183,25 +187,34 @@ XML;
 function computeBusySlots(
     string $from, string $to,
     string $workStart, string $workEnd,
-    int $duration, array $busy
+    int $duration, array $busy, string $tz = 'UTC'
 ): array {
     $slots = [];
     $step  = $duration * 60;
-    $day   = strtotime($from);
-    $last  = strtotime($to);
-    [$wh, $wm] = explode(':', $workStart);
-    [$eh, $em] = explode(':', $workEnd);
+    $tzObj = new DateTimeZone($tz);
+
+    $day  = (new DateTime($from, $tzObj))->setTime(0,0)->getTimestamp();
+    $last = (new DateTime($to,   $tzObj))->setTime(23,59)->getTimestamp();
+
     while ($day <= $last) {
-        $dayStart = mktime((int)$wh, (int)$wm, 0, date('n',$day), date('j',$day), date('Y',$day));
-        $dayEnd   = mktime((int)$eh, (int)$em, 0, date('n',$day), date('j',$day), date('Y',$day));
-        $t = $dayStart;
-        while ($t + $step <= $dayEnd) {
-            foreach ($busy as [$bs, $be]) {
-                if ($bs < ($t + $step) && $be > $t) { $slots[] = date('Y-m-d\TH:i', $t); break; }
+        $d  = new DateTime('@'.$day); $d->setTimezone($tzObj);
+        $ds = $d->format('Y-m-d');
+        $start = (new DateTime("$ds $workStart", $tzObj))->getTimestamp();
+        $end   = (new DateTime("$ds $workEnd",   $tzObj))->getTimestamp();
+        $t = $start;
+        while ($t + $step <= $end) {
+            foreach ($busy as $b) {
+                [$bs, $be] = $b;
+                $title = $b[2] ?? '';
+                if ($bs < ($t + $step) && $be > $t) {
+                    $sd = new DateTime('@'.$t); $sd->setTimezone($tzObj);
+                    $slots[] = ['dt' => $sd->format('Y-m-d\TH:i'), 'title' => $title];
+                    break;
+                }
             }
             $t += $step;
         }
-        $day = strtotime('+1 day', $day);
+        $day = (new DateTime($ds, $tzObj))->modify('+1 day')->getTimestamp();
     }
     return $slots;
 }
@@ -210,31 +223,35 @@ function computeBusySlots(
 function computeFreeSlots(
     string $from, string $to,
     string $workStart, string $workEnd,
-    int $duration, array $busy
+    int $duration, array $busy, string $tz = 'UTC'
 ): array {
     $slots = [];
     $step  = $duration * 60;
-    $day   = strtotime($from);
-    $last  = strtotime($to);
+    $tzObj = new DateTimeZone($tz);
 
-    [$wh, $wm] = explode(':', $workStart);
-    [$eh, $em] = explode(':', $workEnd);
+    $day  = (new DateTime($from, $tzObj))->setTime(0,0)->getTimestamp();
+    $last = (new DateTime($to,   $tzObj))->setTime(23,59)->getTimestamp();
 
     while ($day <= $last) {
-        $dayStart = mktime((int)$wh, (int)$wm, 0, date('n',$day), date('j',$day), date('Y',$day));
-        $dayEnd   = mktime((int)$eh, (int)$em, 0, date('n',$day), date('j',$day), date('Y',$day));
-        $t = $dayStart;
-        while ($t + $step <= $dayEnd) {
+        $d  = new DateTime('@'.$day); $d->setTimezone($tzObj);
+        $ds = $d->format('Y-m-d');
+        $start = (new DateTime("$ds $workStart", $tzObj))->getTimestamp();
+        $end   = (new DateTime("$ds $workEnd",   $tzObj))->getTimestamp();
+        $t = $start;
+        while ($t + $step <= $end) {
             $slotEnd = $t + $step;
             $isBusy  = false;
-            foreach ($busy as [$bs, $be]) {
-                // Overlap check: busy interval overlaps slot
+            foreach ($busy as $b) {
+                [$bs, $be] = $b;
                 if ($bs < $slotEnd && $be > $t) { $isBusy = true; break; }
             }
-            if (!$isBusy) $slots[] = date('Y-m-d\TH:i', $t);
+            if (!$isBusy) {
+                $sd = new DateTime('@'.$t); $sd->setTimezone($tzObj);
+                $slots[] = $sd->format('Y-m-d\TH:i');
+            }
             $t += $step;
         }
-        $day = strtotime('+1 day', $day);
+        $day = (new DateTime($ds, $tzObj))->modify('+1 day')->getTimestamp();
     }
     return $slots;
 }
