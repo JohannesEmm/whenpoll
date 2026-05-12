@@ -36,6 +36,7 @@
   <span class="nav-spacer"></span>
   <?php if ($navUser): ?>
     <span class="nav-user"><?= h($navUser['name']) ?></span>
+    <a href="index.php" class="nav-link">Polls</a>
     <a href="calendar.php" class="nav-link">Calendars</a>
     <a href="profile.php" class="nav-link">Profile</a>
     <a href="index.php?action=logout" class="nav-link">Sign out</a>

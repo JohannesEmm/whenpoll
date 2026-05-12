@@ -36,6 +36,22 @@ $res   = $db->query("
 ");
 while ($row = $res->fetchArray(SQLITE3_ASSOC)) $polls[] = $row;
 
+// Polls the user has voted on but does not own
+$participated = [];
+$userEmail = $db->escapeString($user['email'] ?? '');
+$userName  = $db->escapeString($user['name'] ?? '');
+$pres = $db->query("
+    SELECT DISTINCT p.*, COUNT(DISTINCT v2.participant) as respondents
+    FROM polls p
+    JOIN votes v ON v.poll_id = p.id
+         AND (v.email = '$userEmail' OR v.participant = '$userName')
+    LEFT JOIN votes v2 ON v2.poll_id = p.id
+    WHERE (p.user_id IS NULL OR p.user_id != $uid)
+    GROUP BY p.id
+    ORDER BY p.created DESC
+");
+while ($row = $pres->fetchArray(SQLITE3_ASSOC)) $participated[] = $row;
+
 $success = flash('success');
 ?>
 <!DOCTYPE html>
@@ -68,6 +84,7 @@ $success = flash('success');
   <span class="nav-spacer"></span>
   <?php if ($_navUser): ?>
     <span class="nav-user"><?= h($_navUser['name']) ?></span>
+    <a href="index.php" class="nav-link">Polls</a>
     <a href="calendar.php" class="nav-link">Calendars</a>
     <a href="profile.php" class="nav-link">Profile</a>
     <a href="index.php?action=logout" class="nav-link">Sign out</a>
@@ -131,6 +148,43 @@ $success = flash('success');
       <?php endforeach; ?>
     </div>
   <?php endif; ?>
+
+  <?php if ($participated): ?>
+  <div class="dashboard-header" style="margin-top:2.5rem">
+    <div>
+      <h2 style="font-size:1.25rem;font-weight:700;color:var(--text)">Polls I participated in</h2>
+      <p style="color:var(--muted);font-size:.875rem">Polls you voted on that others created.</p>
+    </div>
+  </div>
+  <div class="poll-list">
+    <?php foreach ($participated as $p): ?>
+      <div class="poll-card card">
+        <div class="poll-card-body">
+          <div class="poll-meta">
+            <?php if ($p['finalized_slot_id']): ?>
+              <span class="badge badge-finalized">Finalized</span>
+            <?php elseif ($p['deadline'] && strtotime($p['deadline']) < time()): ?>
+              <span class="badge badge-expired">Expired</span>
+            <?php else: ?>
+              <span class="badge badge-open">Open</span>
+            <?php endif; ?>
+          </div>
+          <h3 class="poll-title"><?= h($p['title']) ?></h3>
+          <p class="poll-stats">
+            <?= (int)$p['respondents'] ?> respondent<?= $p['respondents'] != 1 ? 's' : '' ?>
+            · Created <?= date('d M Y', $p['created']) ?>
+            <?php if ($p['deadline']): ?>· Deadline <?= date('d M', strtotime($p['deadline'])) ?><?php endif; ?>
+          </p>
+        </div>
+        <div class="poll-card-actions">
+          <a href="<?= APP_URL ?>/<?= h($p['public_id']) ?>" class="btn btn-ghost btn-sm" target="_blank">Vote link ↗</a>
+          <a href="results.php?id=<?= h($p['public_id']) ?>" class="btn btn-secondary btn-sm">Results</a>
+        </div>
+      </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
 </div>
 </body>
 </html>
