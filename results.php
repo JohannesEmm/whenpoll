@@ -172,7 +172,7 @@ foreach ($slots as $s) $byDate[date('Y-m-d', strtotime($s['slot_dt']))][] = $s;
     </div>
     <div class="header-actions">
       <a href="vote.php?id=<?= h($pid) ?>" class="btn btn-ghost btn-sm" target="_blank">Vote link ↗</a>
-      <?php if ($user): ?><a href="index.php" class="btn btn-ghost btn-sm">← Dashboard</a><?php endif; ?>
+      <?php if ($isOwner): ?><a href="index.php" class="btn btn-ghost btn-sm">← Dashboard</a><?php endif; ?>
     </div>
   </div>
 
