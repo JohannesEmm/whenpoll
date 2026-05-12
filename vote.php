@@ -374,7 +374,7 @@ document.querySelectorAll('.vg-time-h[data-iso]').forEach(th => {
         td.title = title; // keep tooltip too
         const lbl = document.createElement('div');
         lbl.className = 'vg-busy-label';
-        lbl.textContent = title.length > 14 ? title.slice(0, 13) + '…' : title;
+        lbl.textContent = title; // CSS handles wrapping/overflow within fixed width
         td.appendChild(lbl);
       }
     });

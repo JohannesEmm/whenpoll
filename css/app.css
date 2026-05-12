@@ -485,10 +485,10 @@ details summary::-webkit-details-marker { display: none; }
 .vg-l-hint  { color: var(--ink2); font-weight: 400; margin-left: auto; font-style: italic; }
 .vg-me-busy { background: #e5e7e5; }
 .vg-busy-label {
-  font-size: .52rem; line-height: 1.2; text-align: center;
+  font-size: .48rem; line-height: 1.25; text-align: center;
   color: #92400e; margin-top: 2px;
-  width: 40px; max-width: 40px; /* match vg-time-h min-width; never widens column */
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  width: 40px; max-width: 40px; /* never widens column */
+  white-space: normal; word-break: break-word; overflow: hidden;
 }
 
 /* ── Mode toggle ──────────────────────────────────────────────────────────── */
