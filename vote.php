@@ -381,7 +381,13 @@ document.querySelectorAll('.vg-time-h[data-iso]').forEach(th => {
       if (title) {
         td.title = title; // tooltip on hover
         const cell = document.querySelector(`.vg-event-cell[data-dt="${CSS.escape(key)}"]`);
-        if (cell) { cell.textContent = title; hasTitles = true; }
+        if (cell) {
+          const div = document.createElement('div');
+          div.className = 'vg-event-title';
+          div.textContent = title;
+          cell.appendChild(div);
+          hasTitles = true;
+        }
       }
     });
     if (hasTitles) {
