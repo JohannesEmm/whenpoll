@@ -9,15 +9,28 @@ $token = $_GET['token'] ?? '';
 $poll  = $db->querySingle("SELECT * FROM polls WHERE public_id='" . $db->escapeString($pid) . "'", true);
 if (!$poll) { http_response_code(404); die('Poll not found.'); }
 
-// Must be owner (via session) or have admin token
-$isOwner = $user && $user['id'] == $poll['user_id'];
-$hasToken = hash_equals($poll['admin_token'], $token);
-if (!$isOwner && !$hasToken) { http_response_code(403); die('Access denied.'); }
+// Must be owner (via session), have admin token, or have voted on the poll
+$isOwner  = $user && $user['id'] == $poll['user_id'];
+$hasToken = $token && hash_equals($poll['admin_token'], $token);
+
+// Allow read-only access for logged-in users who have voted on this poll
+$hasVoted = false;
+if (!$isOwner && !$hasToken && $user) {
+    $uemail = $db->escapeString($user['email'] ?? '');
+    $uname  = $db->escapeString($user['name']  ?? '');
+    $pid_int = (int)$poll['id'];
+    $hasVoted = (bool)$db->querySingle(
+        "SELECT 1 FROM votes WHERE poll_id=$pid_int AND (email='$uemail' OR participant='$uname')",
+        true
+    );
+}
+$readOnly = !$isOwner && !$hasToken; // no admin actions allowed
+if (!$isOwner && !$hasToken && !$hasVoted) { http_response_code(403); die('Access denied.'); }
 
 $pollId = $poll['id'];
 
-// Actions
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Actions (blocked for read-only participants)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$readOnly) {
     $action = $_POST['action'] ?? '';
     if ($action === 'send_admin_link' && !$isOwner && $hasToken) {
         $email = trim($_POST['admin_email'] ?? '');
@@ -159,7 +172,7 @@ foreach ($slots as $s) $byDate[date('Y-m-d', strtotime($s['slot_dt']))][] = $s;
     </div>
     <div class="header-actions">
       <a href="vote.php?id=<?= h($pid) ?>" class="btn btn-ghost btn-sm" target="_blank">Vote link ↗</a>
-      <?php if ($isOwner): ?><a href="index.php" class="btn btn-ghost btn-sm">← Dashboard</a><?php endif; ?>
+      <?php if ($user): ?><a href="index.php" class="btn btn-ghost btn-sm">← Dashboard</a><?php endif; ?>
     </div>
   </div>
 
