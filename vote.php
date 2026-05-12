@@ -237,6 +237,13 @@ foreach ($slots as $s) {
               </td>
             <?php endforeach; ?>
           </tr>
+          <!-- Event title row: populated by JS, hidden until there are titles -->
+          <tr class="vg-event-row" style="display:none">
+            <td></td>
+            <?php foreach ($slots as $s): ?>
+              <td class="vg-event-cell" data-dt="<?= h(substr($s['slot_dt'],0,16)) ?>"></td>
+            <?php endforeach; ?>
+          </tr>
           <?php endif; ?>
         </tbody>
       </table>
@@ -365,19 +372,22 @@ document.querySelectorAll('.vg-time-h[data-iso]').forEach(th => {
       const title = typeof b === 'string' ? '' : (b.title || '');
       busyMap[dt.slice(0,16)] = title;
     });
+    let hasTitles = false;
     document.querySelectorAll('.vg-vcell[data-dt]').forEach(td => {
       const key = td.dataset.dt;
       if (!busyMap.hasOwnProperty(key)) return;
       td.classList.add('vg-me-busy');
       const title = busyMap[key];
       if (title) {
-        td.title = title; // keep tooltip too
-        const lbl = document.createElement('div');
-        lbl.className = 'vg-busy-label';
-        lbl.textContent = title; // CSS handles wrapping/overflow within fixed width
-        td.appendChild(lbl);
+        td.title = title; // tooltip on hover
+        const cell = document.querySelector(`.vg-event-cell[data-dt="${CSS.escape(key)}"]`);
+        if (cell) { cell.textContent = title; hasTitles = true; }
       }
     });
+    if (hasTitles) {
+      const row = document.querySelector('.vg-event-row');
+      if (row) row.style.display = '';
+    }
     const nb = data.busy.length;
     if (status) status.textContent = `· ${nb} busy in your calendar`;
   } catch(e) { if (status) status.textContent = ''; }
