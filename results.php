@@ -178,7 +178,8 @@ foreach ($slots as $s) $byDate[date('Y-m-d', strtotime($s['slot_dt']))][] = $s;
 
   <?php if ($success): ?><div class="alert alert-success"><?= h($success) ?></div><?php endif; ?>
 
-  <!-- Edit poll title/description -->
+  <!-- Edit poll title/description (owner/admin only) -->
+  <?php if (!$readOnly): ?>
   <details class="card" style="margin-bottom:1.25rem">
     <summary style="cursor:pointer;font-weight:600;list-style:none;display:flex;align-items:center;gap:.4rem">
       <span style="font-size:1rem">✏️</span> Edit poll title &amp; description
@@ -196,6 +197,7 @@ foreach ($slots as $s) $byDate[date('Y-m-d', strtotime($s['slot_dt']))][] = $s;
       <button type="submit" class="btn btn-secondary btn-sm">Save changes</button>
     </form>
   </details>
+  <?php endif; ?>
 
   <!-- Links + email for token-only (non-logged-in) visitors -->
   <?php if (!$isOwner && $hasToken):
@@ -240,10 +242,12 @@ foreach ($slots as $s) $byDate[date('Y-m-d', strtotime($s['slot_dt']))][] = $s;
     <?php $fslot = $db->querySingle("SELECT * FROM slots WHERE id=" . (int)$poll['finalized_slot_id'], true); ?>
     <div class="alert alert-success finalized-banner">
       <strong>📅 Finalized:</strong> <?= slotLabel($fslot['slot_dt'], $fslot['duration']) ?>
+      <?php if (!$readOnly): ?>
       <form method="POST" style="margin-top:.5rem">
         <input type="hidden" name="action" value="unfinalize">
         <button class="btn btn-ghost btn-sm">Unfinalize</button>
       </form>
+      <?php endif; ?>
     </div>
   <?php endif; ?>
 
@@ -284,6 +288,7 @@ foreach ($slots as $s) $byDate[date('Y-m-d', strtotime($s['slot_dt']))][] = $s;
             </div>
             <?php endif; ?>
           </div>
+          <?php if (!$readOnly): ?>
           <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center">
             <?php if (!$poll['finalized_slot_id']): ?>
             <form method="POST">
@@ -298,6 +303,7 @@ foreach ($slots as $s) $byDate[date('Y-m-d', strtotime($s['slot_dt']))][] = $s;
               <button class="btn btn-ghost btn-sm" style="color:var(--no)">✕</button>
             </form>
           </div>
+          <?php endif; ?>
         </div>
       <?php endforeach; ?>
     </div>
