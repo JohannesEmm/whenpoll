@@ -173,6 +173,7 @@ if ($user) {
             <span>Weekdays only</span>
           </label>
         </div>
+        <div id="tzDisplay" class="hint" style="font-size:.72rem;align-self:flex-end;padding-bottom:.38rem;white-space:nowrap"></div>
         <div class="grid-quick">
           <button type="button" class="btn btn-ghost btn-sm" onclick="quickAll()">All</button>
           <button type="button" class="btn btn-ghost btn-sm" onclick="quickClear()">Clear</button>
@@ -220,8 +221,9 @@ let isAllDay    = false;
 let numWeeks    = 2;
 
 // ── Timezone ──────────────────────────────────────────────────────────────────
-document.getElementById('pollTz').value =
-  Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+document.getElementById('pollTz').value = detectedTz;
+document.getElementById('tzDisplay').textContent = '🕐 ' + detectedTz;
 
 // ── Controls ──────────────────────────────────────────────────────────────────
 const $from  = document.getElementById('gridFrom');
@@ -256,6 +258,7 @@ function setMode(allDay) {
   document.getElementById('timeGridWrap').style.display = allDay ? 'none' : '';
   document.getElementById('dateGrid').style.display     = allDay ? 'flex' : 'none';
   document.getElementById('durSelect').closest('.field').style.opacity = allDay ? '.4' : '';
+  document.getElementById('tzDisplay').style.display    = allDay ? 'none' : '';
   selected.clear(); busyCells.clear();
   renderGrid();
 }

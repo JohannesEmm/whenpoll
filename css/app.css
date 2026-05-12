@@ -477,6 +477,11 @@ details summary::-webkit-details-marker { display: none; }
 .vg-l-no    { color: var(--ink2); }
 .vg-l-hint  { color: var(--ink2); font-weight: 400; margin-left: auto; font-style: italic; }
 .vg-me-busy { background: #e5e7e5; }
+.vg-busy-label {
+  font-size: .52rem; line-height: 1.2; text-align: center;
+  color: #92400e; margin-top: 2px;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* ── Mode toggle ──────────────────────────────────────────────────────────── */
 .mode-toggle { display: flex; gap: .3rem; }

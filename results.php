@@ -44,6 +44,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $db->exec("UPDATE polls SET finalized_slot_id=NULL WHERE id=$pollId");
         redirect("results.php?id=$pid&token=$token");
     }
+    if ($action === 'edit_title') {
+        $newTitle = trim($_POST['title'] ?? '');
+        $newDesc  = trim($_POST['description'] ?? '');
+        if ($newTitle) {
+            $tesc = $db->escapeString($newTitle);
+            $desc = $db->escapeString($newDesc);
+            $db->exec("UPDATE polls SET title='$tesc', description='$desc' WHERE id=$pollId");
+            flash('success', 'Poll updated.');
+        }
+        redirect("results.php?id=$pid&token=$token");
+    }
+    if ($action === 'delete_slot') {
+        $sid = (int)($_POST['slot_id'] ?? 0);
+        if ($sid) {
+            $db->exec("DELETE FROM votes WHERE slot_id=$sid AND poll_id=$pollId");
+            $db->exec("DELETE FROM slots WHERE id=$sid AND poll_id=$pollId");
+            if ((int)$poll['finalized_slot_id'] === $sid) {
+                $db->exec("UPDATE polls SET finalized_slot_id=NULL WHERE id=$pollId");
+            }
+            flash('success', 'Slot deleted.');
+        }
+        redirect("results.php?id=$pid&token=$token");
+    }
 }
 
 // Reload finalized
@@ -141,23 +164,55 @@ foreach ($slots as $s) $byDate[date('Y-m-d', strtotime($s['slot_dt']))][] = $s;
 
   <?php if ($success): ?><div class="alert alert-success"><?= h($success) ?></div><?php endif; ?>
 
-  <!-- Save access prompt for token-only (non-logged-in) visitors -->
-  <?php if (!$isOwner && $hasToken): ?>
+  <!-- Edit poll title/description -->
+  <details class="card" style="margin-bottom:1.25rem">
+    <summary style="cursor:pointer;font-weight:600;list-style:none;display:flex;align-items:center;gap:.4rem">
+      <span style="font-size:1rem">✏️</span> Edit poll title &amp; description
+    </summary>
+    <form method="POST" style="margin-top:.75rem">
+      <input type="hidden" name="action" value="edit_title">
+      <div class="field">
+        <label>Title</label>
+        <input type="text" name="title" required value="<?= h($poll['title']) ?>">
+      </div>
+      <div class="field">
+        <label>Description <span class="muted">(optional)</span></label>
+        <input type="text" name="description" value="<?= h($poll['description'] ?? '') ?>">
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm">Save changes</button>
+    </form>
+  </details>
+
+  <!-- Links + email for token-only (non-logged-in) visitors -->
+  <?php if (!$isOwner && $hasToken):
+    $adminUrl = APP_URL . '/results.php?id=' . rawurlencode($pid) . '&token=' . rawurlencode($token);
+  ?>
   <div class="card" style="margin-bottom:1.25rem;border-left:3px solid var(--accent)">
-    <h2 style="margin-bottom:.4rem">Save your admin access</h2>
-    <p class="hint" style="margin-bottom:.9rem">Email yourself the admin link, or login to attach this poll to your account.</p>
-    <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end">
-      <form method="POST" style="display:flex;gap:.5rem;align-items:center;flex:1;min-width:220px">
-        <input type="hidden" name="action" value="send_admin_link">
-        <input type="email" name="admin_email" required placeholder="you@example.com" style="flex:1;min-width:0">
-        <button type="submit" class="btn btn-secondary btn-sm">Send link</button>
-      </form>
-      <a href="auth.php?next=<?= urlencode("results.php?id=$pid&token=$token") ?>" class="btn btn-ghost btn-sm">Login →</a>
+    <h2 style="margin-bottom:.75rem">Your poll links</h2>
+    <div class="field" style="margin-bottom:.7rem">
+      <label>Vote link — share with participants</label>
+      <div class="share-row">
+        <input type="text" id="adminVoteUrl" value="<?= h($voteUrl) ?>" readonly>
+        <button class="btn btn-ghost btn-sm" onclick="copyField('adminVoteUrl',this)">Copy</button>
+      </div>
     </div>
+    <div class="field" style="margin-bottom:.9rem">
+      <label>Admin / edit link — bookmark this, it's your only way back</label>
+      <div class="share-row">
+        <input type="text" id="adminMgmtUrl" value="<?= h($adminUrl) ?>" readonly>
+        <button class="btn btn-ghost btn-sm" onclick="copyField('adminMgmtUrl',this)">Copy</button>
+      </div>
+    </div>
+    <form method="POST" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+      <input type="hidden" name="action" value="send_admin_link">
+      <input type="email" name="admin_email" required placeholder="Email me the admin link…" style="flex:1;min-width:180px">
+      <button type="submit" class="btn btn-secondary btn-sm">Send to email</button>
+    </form>
   </div>
   <?php endif; ?>
 
-  <!-- Share link -->
+  <?php if ($isOwner): ?>
+  <!-- Share link (owners only; token visitors already see vote URL in the card above) -->
   <div class="card share-card" style="margin-bottom:1.25rem">
     <label>Share with participants</label>
     <div class="share-row">
@@ -165,6 +220,7 @@ foreach ($slots as $s) $byDate[date('Y-m-d', strtotime($s['slot_dt']))][] = $s;
       <button class="btn btn-ghost btn-sm" onclick="copyLink()">Copy</button>
     </div>
   </div>
+  <?php endif; ?>
 
   <?php if ($poll['finalized_slot_id']): ?>
     <?php $fslot = $db->querySingle("SELECT * FROM slots WHERE id=" . (int)$poll['finalized_slot_id'], true); ?>
@@ -214,13 +270,20 @@ foreach ($slots as $s) $byDate[date('Y-m-d', strtotime($s['slot_dt']))][] = $s;
             </div>
             <?php endif; ?>
           </div>
-          <?php if (!$poll['finalized_slot_id']): ?>
-          <form method="POST" style="margin-left:auto">
-            <input type="hidden" name="action"  value="finalize">
-            <input type="hidden" name="slot_id" value="<?= $s['id'] ?>">
-            <button class="btn btn-primary btn-sm">Finalize</button>
-          </form>
-          <?php endif; ?>
+          <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center">
+            <?php if (!$poll['finalized_slot_id']): ?>
+            <form method="POST">
+              <input type="hidden" name="action"  value="finalize">
+              <input type="hidden" name="slot_id" value="<?= $s['id'] ?>">
+              <button class="btn btn-primary btn-sm">Finalize</button>
+            </form>
+            <?php endif; ?>
+            <form method="POST" onsubmit="return confirm('Delete this slot and all its votes?')">
+              <input type="hidden" name="action"  value="delete_slot">
+              <input type="hidden" name="slot_id" value="<?= $s['id'] ?>">
+              <button class="btn btn-ghost btn-sm" style="color:var(--no)">✕</button>
+            </form>
+          </div>
         </div>
       <?php endforeach; ?>
     </div>
@@ -299,6 +362,10 @@ foreach ($slots as $s) $byDate[date('Y-m-d', strtotime($s['slot_dt']))][] = $s;
 function copyLink() {
   navigator.clipboard.writeText(document.getElementById('shareUrl').value)
     .then(() => { const b = event.target; b.textContent = 'Copied!'; setTimeout(()=>b.textContent='Copy', 2000); });
+}
+function copyField(id, btn) {
+  navigator.clipboard.writeText(document.getElementById(id).value)
+    .then(() => { btn.textContent = 'Copied!'; setTimeout(()=>btn.textContent='Copy', 2000); });
 }
 </script>
 </body>

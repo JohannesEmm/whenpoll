@@ -9,7 +9,7 @@ if ($next = trim($_GET['next'] ?? '')) {
 
 $error = '';
 $sent  = false;
-$tab   = 'magic'; // default tab
+$tab   = 'password'; // default tab
 $db    = getDB();
 
 // ── Magic link verification ───────────────────────────────────────────────────
@@ -181,16 +181,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <form method="POST" class="auth-form">
           <input type="hidden" name="mode" value="password">
           <div class="field">
-            <label>Your name <span class="muted">(optional)</span></label>
-            <input type="text" name="display_name" placeholder="e.g. Jane Smith" value="<?= h($_POST['display_name'] ?? '') ?>">
-          </div>
-          <div class="field">
             <label>Email</label>
             <input type="email" name="email" required placeholder="you@example.com" value="<?= h($_POST['email'] ?? '') ?>">
           </div>
           <div class="field">
             <label>Password</label>
             <input type="password" name="password" required placeholder="min. 6 characters">
+          </div>
+          <div class="field">
+            <label>Your name <span class="muted">(only required for new accounts)</span></label>
+            <input type="text" name="display_name" placeholder="e.g. Jane Smith" value="<?= h($_POST['display_name'] ?? '') ?>">
           </div>
           <button type="submit" class="btn btn-primary btn-block">Sign in / Register →</button>
         </form>

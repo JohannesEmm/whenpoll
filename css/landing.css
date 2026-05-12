@@ -44,6 +44,18 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--ink
 .nav-cta {
   background: var(--accent) !important; color: #fff !important;
   padding: .35rem .9rem; border-radius: 6px; font-weight: 600 !important;
+  text-decoration: none;
+}
+.nav-cta-ghost {
+  background: transparent !important;
+  color: rgba(255,255,255,.6) !important;
+  font-weight: 400 !important;
+}
+.nav-cta-ghost:hover { color: #fff !important; }
+.nav-user-name {
+  color: rgba(255,255,255,.75);
+  font-size: .88rem;
+  margin-right: .25rem;
 }
 
 /* ── Hero ─────────────────────────────────────────────────────────────────── */

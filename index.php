@@ -9,6 +9,21 @@ if ($_GET['action'] ?? '' === 'logout') {
     redirect('auth.php');
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_poll') {
+    $uid   = $user['id'];
+    $delId = $db->escapeString(trim($_POST['poll_id'] ?? ''));
+    $p     = $db->querySingle("SELECT id FROM polls WHERE public_id='$delId' AND user_id=$uid", true);
+    if ($p) {
+        $pid_int = (int)$p['id'];
+        $db->exec("DELETE FROM votes WHERE poll_id=$pid_int");
+        $db->exec("DELETE FROM slots WHERE poll_id=$pid_int");
+        $db->exec("DELETE FROM poll_comments WHERE poll_id=$pid_int");
+        $db->exec("DELETE FROM polls WHERE id=$pid_int");
+        flash('success', 'Poll deleted.');
+    }
+    redirect('index.php');
+}
+
 $uid   = $user['id'];
 $polls = [];
 $res   = $db->query("
@@ -106,6 +121,11 @@ $success = flash('success');
           <div class="poll-card-actions">
             <a href="<?= APP_URL ?>/<?= h($p['public_id']) ?>" class="btn btn-ghost btn-sm" target="_blank">Vote link ↗</a>
             <a href="results.php?id=<?= h($p['public_id']) ?>&token=<?= h($p['admin_token']) ?>" class="btn btn-secondary btn-sm">Results</a>
+            <form method="POST" style="margin:0" onsubmit="return confirm('Delete this poll and all its data? This cannot be undone.')">
+              <input type="hidden" name="action"  value="delete_poll">
+              <input type="hidden" name="poll_id" value="<?= h($p['public_id']) ?>">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--no)">Delete</button>
+            </form>
           </div>
         </div>
       <?php endforeach; ?>

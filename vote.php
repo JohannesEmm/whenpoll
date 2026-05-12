@@ -15,10 +15,12 @@ $res   = $db->query("SELECT * FROM slots WHERE poll_id=$pollId ORDER BY slot_dt"
 while ($r = $res->fetchArray(SQLITE3_ASSOC)) $slots[] = $r;
 
 $error = $success = '';
+$viewer = currentUser(); // needed early for POST handler
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$expired && !$final) {
-    $name  = trim($_POST['participant'] ?? '');
-    $email = trim($_POST['email'] ?? '');
+    // Logged-in users: use their profile name/email automatically
+    $name  = $viewer ? $viewer['name'] : trim($_POST['participant'] ?? '');
+    $email = $viewer ? ($viewer['email'] ?? '') : trim($_POST['email'] ?? '');
     $votes = $_POST['vote'] ?? [];
     if (!$name) { $error = 'Please enter your name.'; }
     else {
@@ -66,7 +68,6 @@ $cres = $db->query("SELECT participant, comment, created_at FROM poll_comments W
 while ($cr = $cres->fetchArray(SQLITE3_ASSOC)) $comments[] = $cr;
 
 // Viewer's own calendar (if logged in)
-$viewer     = currentUser();
 $viewerCals = [];
 if ($viewer && $slots) {
     $res2 = $db->query("SELECT id FROM calendars WHERE user_id=" . (int)$viewer['id']);
@@ -145,12 +146,21 @@ foreach ($slots as $s) {
   <div class="card">
     <?php if (!$final && !$expired): ?>
     <form method="POST" id="vf">
-      <div class="vf-identity">
-        <input type="text"  name="participant" required placeholder="Your name *">
-        <input type="email" name="email" placeholder="Email (optional)">
-      </div>
+      <?php if ($viewer): ?>
+        <input type="hidden" name="participant" value="<?= h($viewer['name']) ?>">
+        <input type="hidden" name="email"       value="<?= h($viewer['email'] ?? '') ?>">
+        <p class="hint" style="margin-bottom:.5rem;font-size:.82rem">
+          Voting as <strong><?= h($viewer['name']) ?></strong>
+        </p>
+      <?php else: ?>
+        <div class="vf-identity">
+          <input type="text"  name="participant" required placeholder="Your name *">
+          <input type="email" name="email" placeholder="Email (optional)">
+        </div>
+      <?php endif; ?>
     <?php endif; ?>
 
+    <?php if (!$allDay): ?><p id="tzNote" class="hint" style="font-size:.78rem;margin-bottom:.4rem;margin-top:-.1rem"></p><?php endif; ?>
     <div class="vgrid-scroll">
       <table class="vgrid">
         <thead>
@@ -329,6 +339,16 @@ document.querySelectorAll('.vg-time-h[data-iso]').forEach(th => {
     th.textContent = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
   } catch(e) {}
 });
+// Timezone note
+(function() {
+  const tzNote = document.getElementById('tzNote');
+  if (!tzNote) return;
+  const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const pollTz  = <?= json_encode($pollTz) ?>;
+  tzNote.textContent = localTz === pollTz
+    ? '🕐 Times shown in ' + localTz
+    : '🕐 Times converted to your timezone (' + localTz + ') · originally ' + pollTz;
+})();
 
 <?php if ($viewerCals && $calFrom): ?>
 // Auto-overlay viewer's own calendar busy slots
@@ -350,7 +370,13 @@ document.querySelectorAll('.vg-time-h[data-iso]').forEach(th => {
       if (!busyMap.hasOwnProperty(key)) return;
       td.classList.add('vg-me-busy');
       const title = busyMap[key];
-      if (title) td.title = title;
+      if (title) {
+        td.title = title; // keep tooltip too
+        const lbl = document.createElement('div');
+        lbl.className = 'vg-busy-label';
+        lbl.textContent = title.length > 14 ? title.slice(0, 13) + '…' : title;
+        td.appendChild(lbl);
+      }
     });
     const nb = data.busy.length;
     if (status) status.textContent = `· ${nb} busy in your calendar`;

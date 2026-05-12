@@ -1,3 +1,4 @@
+<?php require_once __DIR__ . '/db.php'; $navUser = currentUser(); ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,20 +14,14 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/landing.css">
 </head>
 <body>
 
-<div class="eco-strip">
-  <span>Hosted in the EU</span>
-  <span>100% renewable energy</span>
-  <span>No tracking</span>
-  <span>Open source</span>
-</div>
-
-<header class="site-nav">
+<nav>
   <a class="brand" href="/">
-    <svg viewBox="0 0 32 32" fill="none" style="width:26px;height:26px;flex-shrink:0">
+    <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
       <rect width="32" height="32" rx="8" fill="#15803d"/>
       <rect x="3" y="3" width="26" height="5" rx="2" fill="#4ade80"/>
       <rect x="3"  y="11" width="7" height="6" rx="1.5" fill="rgba(255,255,255,.2)"/>
@@ -37,14 +32,23 @@
       <rect x="23" y="20" width="6" height="6" rx="1.5" fill="white"/>
     </svg><span class="brand-name">When<span>Poll</span></span>
   </a>
-  <a href="auth.php" class="nav-cta">Sign in</a>
-</header>
+  <span class="nav-eco" title="Hosted in EU · 100% renewable energy">🌿 EU · 100% renewable energy</span>
+  <span class="nav-spacer"></span>
+  <?php if ($navUser): ?>
+    <span class="nav-user"><?= h($navUser['name']) ?></span>
+    <a href="calendar.php" class="nav-link">Calendars</a>
+    <a href="profile.php" class="nav-link">Profile</a>
+    <a href="index.php?action=logout" class="nav-link">Sign out</a>
+  <?php else: ?>
+    <a href="auth.php" class="nav-link">Sign in</a>
+  <?php endif; ?>
+</nav>
 
 <section class="hero">
   <div class="hero-inner">
     <h1><span style="white-space:nowrap">Stop asking <em>When?</em></span><br>Just <em>Poll.</em></h1>
     <p class="hero-sub">Create a scheduling poll, share one link, your group votes. No account needed to vote. Free forever.</p>
-    <a href="auth.php" class="btn-hero">Create a poll →</a>
+    <a href="<?= $navUser ? 'create.php' : 'auth.php' ?>" class="btn-hero">Create a poll →</a>
   </div>
   <div class="hero-visual">
     <div class="mock-poll">
